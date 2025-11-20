@@ -1,69 +1,56 @@
 from flask import Flask, request, jsonify
-import torch
-import clip
-from PIL import Image
-import os
+import requests
+import base64
 
 app = Flask(__name__)
 
-# =========================
-# 1. تحميل نموذج CLIP تلقائيًا
-# =========================
+JINA_URL = "https://api.clip.jina.ai"
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+@app.route("/predict", methods=["POST"])
+def predict():
+    try:
+        # استلام الصورة من Flutter
+        image = request.files["image"].read()
 
-MODEL_NAME = "ViT-B/32"
+        # تحويل الصورة ل Base64
+        img_base64 = base64.b64encode(image).decode("utf-8")
 
-print("Loading CLIP model...")
+        # إرسالها إلى Jina API
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": "Bearer naa"  # مفتوح بدون مفتاح، فقط اتركيها كذا
+        }
 
-# تحميل النموذج - لو غير موجود بيتم تحميله تلقائيًا
-model, preprocess = clip.load(MODEL_NAME, device=device)
+        payload = {
+            "model": "clip-vit-base-patch32",
+            "input": img_base64
+        }
 
-print("Model loaded successfully!")
+        response = requests.post(f"{JINA_URL}/encode", json=payload, headers=headers)
 
-# =========================
-# 2. تحميل خصائص (Features) الصور
-# =========================
+        if response.status_code != 200:
+            return jsonify({"error": "API error", "details": response.text}), 500
 
-FEATURES_FILE = "image_features.pt"
+        # قراءة الـ embedding من Jina
+        result = response.json()
+        embedding = result["data"][0]["embedding"]
 
-if not os.path.exists(FEATURES_FILE):
-    raise FileNotFoundError(f"{FEATURES_FILE} not found! You must upload it to GitHub.")
+        # هنا خذي embedding وقارنيه مع صورك داخل الملفات أو قاعدة البيانات
+        # مؤقتًا نرجع الـ embedding فقط
+        return jsonify({
+            "message": "Success",
+            "embedding_length": len(embedding),
+            "embedding": embedding[:10]  # أول 10 عناصر فقط
+        })
 
-data = torch.load(FEATURES_FILE, map_location=device)
-image_names = data["names"]
-image_features = data["features"].to(device)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# =========================
-# 3. API — البحث عن الصور المشابهة
-# =========================
 
-@app.route("/search", methods=["POST"])
-def search():
-    if "image" not in request.files:
-        return jsonify({"error": "No image uploaded"}), 400
-    
-    img_file = request.files["image"]
-    img = preprocess(Image.open(img_file)).unsqueeze(0).to(device)
-    
-    with torch.no_grad():
-        query_feature = model.encode_image(img)
-        query_feature /= query_feature.norm(dim=-1, keepdim=True)
-    
-    similarities = (image_features @ query_feature.T).squeeze(1)
-    top_k = min(3, similarities.shape[0])
-    top_probs, top_idxs = similarities.topk(top_k)
-    
-    results = [image_names[int(idx)] for idx in top_idxs]
-    return jsonify({"results": results})
-
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
-    return "Server Running!"
-
-# =========================
-# 4. تشغيل السيرفر
-# =========================
+    return "Server is running without CLIP!"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=10000)
