@@ -1,0 +1,10 @@
+fastapi              # لإنشاء API سريع
+uvicorn[standard]    # لتشغيل السيرفر FastAPI
+numpy                # للعمليات الرياضية على الـ embeddings
+torch                # PyTorch لتشغيل نموذج CLIP
+Pillow               # للتعامل مع الصور
+faiss-cpu            # للبحث عن الصور المشابهة بالكفاءة العالية
+python-multipart     # لتحميل الصور في POST requests
+requests             # إذا تحتاجي طلبات HTTP داخل السيرفر
+Flask
+clip-anytorch
