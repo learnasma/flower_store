@@ -2,15 +2,41 @@ from flask import Flask, request, jsonify
 import torch
 import clip
 from PIL import Image
+import os
 
 app = Flask(__name__)
 
-# تحميل النموذج وسمات الصور
+# =========================
+# 1. تحميل نموذج CLIP تلقائيًا
+# =========================
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
-data = torch.load("image_features.pt")
+
+MODEL_NAME = "ViT-B/32"
+
+print("Loading CLIP model...")
+
+# تحميل النموذج - لو غير موجود بيتم تحميله تلقائيًا
+model, preprocess = clip.load(MODEL_NAME, device=device)
+
+print("Model loaded successfully!")
+
+# =========================
+# 2. تحميل خصائص (Features) الصور
+# =========================
+
+FEATURES_FILE = "image_features.pt"
+
+if not os.path.exists(FEATURES_FILE):
+    raise FileNotFoundError(f"{FEATURES_FILE} not found! You must upload it to GitHub.")
+
+data = torch.load(FEATURES_FILE, map_location=device)
 image_names = data["names"]
 image_features = data["features"].to(device)
+
+# =========================
+# 3. API — البحث عن الصور المشابهة
+# =========================
 
 @app.route("/search", methods=["POST"])
 def search():
@@ -35,6 +61,9 @@ def search():
 def home():
     return "Server Running!"
 
+# =========================
+# 4. تشغيل السيرفر
+# =========================
+
 if __name__ == "__main__":
-    # تشغيل السيرفر على الشبكة الداخلية
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
